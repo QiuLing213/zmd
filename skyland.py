@@ -16,6 +16,7 @@ from SecuritySm import get_d_id
 token_save_name = 'TOKEN.txt'
 app_code = '4ca99fa6b56cc2ba'
 token_env = os.environ.get('TOKEN')
+exit_when_fail_env = os.environ.get('EXIT_WHEN_FAIL')
 # 现在想做什么？
 current_type = os.environ.get('SKYLAND_TYPE')
 
@@ -231,7 +232,7 @@ def do_sign(cred_resp):
     http_local.header = header.copy()
     http_local.header['cred'] = cred_resp['cred']
     characters = get_binding_list()
-
+    success = True
     for i in characters:
         body = {
             'gameId': 1,
@@ -242,6 +243,7 @@ def do_sign(cred_resp):
                              json=body).json()
         if resp['code'] != 0:
             print(f'角色{i.get("nickName")}({i.get("channelName")})签到失败了！原因：{resp.get("message")}')
+            success = False
             continue
         awards = resp['data']['awards']
         for j in awards:
@@ -249,6 +251,7 @@ def do_sign(cred_resp):
             print(
                 f'角色{i.get("nickName")}({i.get("channelName")})签到成功，获得了{res["name"]}×{j.get("count") or 1}'
             )
+    return success
 
 
 def save(token):
@@ -315,13 +318,16 @@ def input_for_token():
 
 def start():
     token = init_token()
+    success = True
     for i in token:
         try:
-            do_sign(get_cred_by_token(i))
+            success = do_sign(get_cred_by_token(i))
         except Exception as ex:
             print(f'签到失败，原因：{str(ex)}')
             logging.error('', exc_info=ex)
+            success = False
     print("签到完成！")
+    return success
 
 
 if __name__ == '__main__':
@@ -332,7 +338,11 @@ if __name__ == '__main__':
     logging.info('=========starting==========')
 
     start_time = time.time()
-    start()
+    success = start()
     end_time = time.time()
     logging.info(f'complete with {(end_time - start_time) * 1000} ms')
     logging.info('===========ending============')
+
+    logging.info(f'exit_when_fail_env: {exit_when_fail_env}, success: {success}')
+    if (exit_when_fail_env == "on") and not success:
+        exit(1)
