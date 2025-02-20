@@ -166,6 +166,8 @@ TOKEN和日志应该都会被存储在MAA根路径下
 
 之后就可以自动运行签到了, 想要手动测试的话，选择左侧的Auto Sign > Run workflow, 刷新页面就能看到结果了
 
+现在可以在Github Action Variable中设置变量`EXIT_WHEN_FAIL = on`，当签到发生错误时，脚本会返回错误，进而你会收到来自Github的邮件，及时知道脚本运行情况
+
 <a name="mode3"></a>
 
 ## 使用NAS部署
