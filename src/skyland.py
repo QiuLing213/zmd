@@ -5,9 +5,6 @@ import logging
 import os.path
 import threading
 import time
-import re
-from typing import Optional, Tuple
-from datetime import date
 from getpass import getpass
 from urllib import parse
 
@@ -18,7 +15,6 @@ from SecuritySm import get_d_id
 token_save_name = 'TOKEN.txt'
 app_code = '4ca99fa6b56cc2ba'
 token_env = os.environ.get('TOKEN')
-exit_when_fail_env = os.environ.get('EXIT_WHEN_FAIL')
 # 现在想做什么？
 current_type = os.environ.get('SKYLAND_TYPE')
 
@@ -60,79 +56,6 @@ grant_code_url = "https://as.hypergryph.com/user/oauth2/v2/grant"
 # 使用认证代码获得cred
 cred_code_url = "https://zonai.skland.com/web/v1/user/auth/generate_cred_by_code"
 
-
-def config_logger():
-    current_date = date.today().strftime('%Y-%m-%d')
-    if not os.path.exists('logs'):
-        os.mkdir('logs')
-    logger = logging.getLogger()
-
-    file_handler = logging.FileHandler(f'./logs/{current_date}.log', encoding='utf-8')
-    logger.addHandler(file_handler)
-    logging.getLogger().setLevel(logging.DEBUG)
-    file_handler.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    file_handler.setFormatter(formatter)
-
-    def filter_code(text):
-        filter_key = ['code', 'cred', 'token']
-        try:
-            j = json.loads(text)
-            if not j.get('data'):
-                return text
-            data = j['data']
-            for i in filter_key:
-                if i in data:
-                    data[i] = '*****'
-            return json.dumps(j, ensure_ascii=False)
-        except:
-            return text
-
-    _get = requests.get
-    _post = requests.post
-
-    def get(*args, **kwargs):
-        response = _get(*args, **kwargs)
-        logger.info(f'GET {args[0]} - {response.status_code} - {filter_code(response.text)}')
-        return response
-
-    def post(*args, **kwargs):
-        response = _post(*args, **kwargs)
-        logger.info(f'POST {args[0]} - {response.status_code} - {filter_code(response.text)}')
-        return response
-
-    # 替换 requests 中的方法
-    requests.get = get
-    requests.post = post
-
-def push_serverchan3(sendkey: str, title: str, desp: str = "",
-                     uid: Optional[str] = None, tags: Optional[str] = None,
-                     short: Optional[str] = None, timeout: int = 10) -> Tuple[bool, str]:
-    if not sendkey:
-        return False, "sendkey is empty"
-
-    if uid is None:
-        m = re.match(r"^sctp(\d+)t", sendkey)
-        if not m:
-            return False, "cannot extract uid from sendkey; please pass uid explicitly"
-        uid = m.group(1)
-
-    api = f"https://{uid}.push.ft07.com/send/{sendkey}.send"
-    payload = {
-        "title": title or "通知",
-        "desp": desp or "",
-    }
-    if tags:
-        payload["tags"] = tags
-    if short:
-        payload["short"] = short
-
-    try:
-        r = requests.post(api, json=payload, timeout=timeout)
-        ok = (r.status_code == 200)
-        return ok, r.text
-    except Exception as e:
-        return False, f"exception: {e!r}"
 
 def generate_signature(token: str, path, body_or_query):
     """
@@ -240,9 +163,9 @@ def get_binding_list():
     resp = requests.get(binding_url, headers=get_sign_header(binding_url, 'get', None, http_local.header)).json()
 
     if resp['code'] != 0:
-        print(f"请求角色列表出现问题：{resp['message']}")
+        logging.error(f"请求角色列表出现问题：{resp['message']}")
         if resp.get('message') == '用户未登录':
-            print(f'用户登录可能失效了，请重新运行此程序！')
+            logging.error(f'用户登录可能失效了，请重新运行此程序！')
             os.remove(token_save_name)
             return []
     for i in resp['data']['list']:
@@ -254,7 +177,7 @@ def get_binding_list():
 
 def list_awards(game_id, uid):
     resp = requests.get(sign_url, headers=http_local.header, params={'gameId': game_id, 'uid': uid}).json()
-    print(resp)
+    logging.info(f"签到获得:{resp}")
 
 
 def do_sign(cred_resp):
@@ -271,12 +194,12 @@ def do_sign(cred_resp):
         }
         # list_awards(1, i.get('uid'))
         msg = requests.post(sign_url, headers=get_sign_header(sign_url, 'post', body, http_local.header),
-                             json=body).json()
-        print(msg)
+                            json=body).json()
+        # print(msg)
         logs_out.append(str(msg))
         if msg['code'] != 0:
             msg = f'角色{i.get("nickName")}({i.get("channelName")})签到失败了！原因：{msg.get("message")}'
-            print(msg)
+            logging.error(msg)
             logs_out.append(msg)
             success = False
             continue
@@ -284,15 +207,15 @@ def do_sign(cred_resp):
         for j in awards:
             res = j['resource']
             msg = f'角色{i.get("nickName")}({i.get("channelName")})签到成功，获得了{res["name"]}×{j.get("count") or 1}'
-            print(msg)
+            logging.error(msg)
             logs_out.append(msg)
-    return (success, logs_out)
+    return success, logs_out
 
 
 def save(token):
     with open(token_save_name, 'w') as f:
         f.write(token)
-    print(
+    logging.info(
         f'您的鹰角网络通行证保存在{token_save_name}, 打开这个可以把它复制到云函数服务器上执行!\n双击添加账号即可再次添加账号')
 
 
@@ -314,23 +237,23 @@ def read_from_env():
         i = i.strip()
         if i and i not in v:
             v.append(parse_user_token(i))
-    print(f'从环境变量中读取到{len(v)}个token...')
+    logging.info(f'从环境变量中读取到{len(v)}个token...')
     return v
 
 
 def init_token():
     if token_env:
-        print('使用环境变量里面的token')
+        logging.info('使用环境变量里面的token')
         # 对于github action,不需要存储token,因为token在环境变量里
         return read_from_env()
     tokens = []
     tokens.extend(read(token_save_name))
     add_account = current_type == 'add_account'
     if add_account:
-        print('！！！您启用了添加账号模式，将不会签到！！！')
+        logging.info('！！！您启用了添加账号模式，将不会签到！！！')
     if len(tokens) == 0 or add_account:
         tokens.append(input_for_token())
-    save('\n'.join(tokens))
+        save('\n'.join(tokens))
     return [] if add_account else tokens
 
 
@@ -338,7 +261,7 @@ def input_for_token():
     print("请输入你需要做什么：")
     print("1.使用用户名密码登录（非常推荐）")
     print("2.使用手机验证码登录（非常推荐，但可能因为人机验证失败）")
-    print("3.手动输入鹰角网络通行证账号登录(推荐)")
+    print("3.手动输入鹰角网络通行证账号登录")
     mode = input('请输入（1，2，3）：')
     if mode == '' or mode == '1':
         token = login_by_password()
@@ -363,41 +286,9 @@ def start():
                 success = False
         except Exception as ex:
             err = f'签到失败，原因：{str(ex)}'
-            print(err)
-            logging.error('', exc_info=ex)
+            logging.error(err)
             all_logs.append(err)
             success = False
-    print("签到完成！")
+    logging.info("签到完成！")
 
-    # === Server酱³ 推送（可选，通过环境变量控制） ===
-    # 在本地或 GitHub Actions 设置：
-    #   SC3_SENDKEY: 必填
-    #   SC3_UID: 可选（若不设，将自动从 sendkey 中提取）
-    sc3_sendkey = os.environ.get('SC3_SENDKEY', '').strip()
-    sc3_uid     = os.environ.get('SC3_UID', '').strip() or None
-
-    if sc3_sendkey:
-        title = f'森空岛自动签到结果 - {date.today().strftime("%Y-%m-%d")}'
-        desp = '\n'.join(all_logs) if all_logs else '今日无可用账号或无输出'
-        ok, resp = push_serverchan3(sc3_sendkey, title, desp, uid=sc3_uid)
-        print("[SC3] 推送成功" if ok else "[SC3] 推送失败", resp)
-    else:
-        print("[SC3] 跳过推送：未设置环境变量 SC3_SENDKEY")
-    return success
-
-if __name__ == '__main__':
-    print('本项目源代码仓库：https://github.com/xxyz30/skyland-auto-sign(已被github官方封禁)')
-    print('https://gitee.com/FancyCabbage/skyland-auto-sign')
-    config_logger()
-
-    logging.info('=========starting==========')
-
-    start_time = time.time()
-    success = start()
-    end_time = time.time()
-    logging.info(f'complete with {(end_time - start_time) * 1000} ms')
-    logging.info('===========ending============')
-
-    logging.info(f'exit_when_fail_env: {exit_when_fail_env}, success: {success}')
-    if (exit_when_fail_env == "on") and not success:
-        exit(1)
+    return success, all_logs

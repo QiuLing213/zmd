@@ -29,4 +29,4 @@ jobs:
           SC3_UID: ${{ secrets.SC3_UID }}
           EXIT_WHEN_FAIL: ${{ vars.EXIT_WHEN_FAIL }}
         run: |
-          python skyland.py
+          python src/main.py

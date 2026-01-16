@@ -13,4 +13,4 @@ ENV TOKEN=""
 ENV SC3_SENDKEY=""
 ENV SC3_UID=""
 
-CMD ["python", "skyland.py" ]
+CMD ["python", "src/main.py" ]
