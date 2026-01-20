@@ -169,7 +169,8 @@ def get_binding_list():
             os.remove(token_save_name)
             return []
     for i in resp['data']['list']:
-        if i.get('appCode') != 'arknights':
+        # 也许有些游戏没有签到功能？
+        if i.get('appCode') not in ('arknights','endfield'):
             continue
         v.extend(i.get('bindingList'))
     return v
@@ -198,7 +199,7 @@ def do_sign(cred_resp):
         # print(msg)
         logs_out.append(str(msg))
         if msg['code'] != 0:
-            msg = f'角色{i.get("nickName")}({i.get("channelName")})签到失败了！原因：{msg.get("message")}'
+            msg = f'[{i.get("gameName")}]角色{i.get("nickName")}({i.get("channelName")})签到失败了！原因：{msg.get("message")}'
             logging.error(msg)
             logs_out.append(msg)
             success = False
@@ -206,7 +207,7 @@ def do_sign(cred_resp):
         awards = msg['data']['awards']
         for j in awards:
             res = j['resource']
-            msg = f'角色{i.get("nickName")}({i.get("channelName")})签到成功，获得了{res["name"]}×{j.get("count") or 1}'
+            msg = f'[{i.get("gameName")}]角色{i.get("nickName")}({i.get("channelName")})签到成功，获得了{res["name"]}×{j.get("count") or 1}'
             logging.error(msg)
             logs_out.append(msg)
     return success, logs_out
