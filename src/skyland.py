@@ -190,7 +190,7 @@ def do_sign(cred_resp):
     logs_out = []  # 新增：用于 Server酱³ 的汇总文本
     for i in characters:
         body = {
-            'gameId': 1,
+            'gameId': i.get('gameId'),
             'uid': i.get('uid')
         }
         # list_awards(1, i.get('uid'))
