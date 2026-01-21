@@ -31,13 +31,11 @@
 
 ## 方法1
 
-1.安装python（3.6版本及以上）。
+1.安装python（3.9版本及以上）。
 
-2.下载`requirements.txt` ，在该目录下打开命令提示符(CMD)，运行`pip install -r requirements.txt`
+2.克隆源代码
 
-2.下载脚本`skyland.py`、`SecuritySm.py`,这两个文件都要放置在`requirements.txt`文件同目录下
-
-3.命令提示符运行`python skyland.py`（结果输出如下就代表你成功了）
+3.命令提示符运行`python src/main.py`（结果输出如下就代表你成功了）
 ![img.png](assets/img_0.png)
 
 （以上3步可以用我打好的exe文件直接运行，链接见[release](https://gitee.com/FancyCabbage/skyland-auto-sign/releases)
@@ -66,9 +64,9 @@
 
 可以使用MAA自动执行脚本
 
-MAA在连接设置里有运行前脚本，输入`skyland.py`的路径后，每次连接模拟器时会自动帮你签到。
+MAA在连接设置里有运行前脚本，输入`main.py`的路径后，每次连接模拟器时会自动帮你签到。
 
-如果你用的exe版本的，请输入`skyland.exe`的路径！
+如果你用的exe版本的，请输入`main.exe`的路径！
 ![img_3.png](assets/img_3.png)
 
 第一次执行的话应该还是会出现这个东西
