@@ -10,7 +10,7 @@ import push
 from skyland import start
 
 exit_when_fail_env = os.environ.get('EXIT_WHEN_FAIL')
-
+use_proxy = os.environ.get('USE_PROXY')
 
 def config_logger():
     current_date = date.today().strftime('%Y-%m-%d')
@@ -50,11 +50,25 @@ def config_logger():
     _post = requests.post
 
     def get(*args, **kwargs):
+        if use_proxy:
+            kwargs.update({
+                'proxies': {
+                    'https': 'http://localhost:8000',
+                },
+                'verify': False
+            })
         response = _get(*args, **kwargs)
         logger.debug(f'GET {args[0]} - {response.status_code} - {filter_code(response.text)}')
         return response
 
     def post(*args, **kwargs):
+        if use_proxy:
+            kwargs.update({
+                'proxies': {
+                    'https': 'http://localhost:8000',
+                },
+                'verify': False
+            })
         response = _post(*args, **kwargs)
         logger.debug(f'POST {args[0]} - {response.status_code} - {filter_code(response.text)}')
         return response

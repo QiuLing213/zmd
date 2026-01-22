@@ -21,28 +21,34 @@ current_type = os.environ.get('SKYLAND_TYPE')
 http_local = threading.local()
 header = {
     'cred': '',
-    'User-Agent': 'Skland/1.0.1 (com.hypergryph.skland; build:100001014; Android 31; ) Okhttp/4.11.0',
-    'Accept-Encoding': 'gzip',
-    'Connection': 'close'
-}
-header_login = {
-    'User-Agent': 'Skland/1.0.1 (com.hypergryph.skland; build:100001014; Android 31; ) Okhttp/4.11.0',
+    'User-Agent': 'Mozilla/5.0 (Linux; Android 12; SM-A5560 Build/V417IR; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/101.0.4951.61 Safari/537.36; SKLand/1.52.1',
     'Accept-Encoding': 'gzip',
     'Connection': 'close',
-    'dId': get_d_id()
+    'X-Requested-With': 'com.hypergryph.skland'
+}
+header_login = {
+    'User-Agent': 'Mozilla/5.0 (Linux; Android 12; SM-A5560 Build/V417IR; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/101.0.4951.61 Safari/537.36; SKLand/1.52.1',
+    'Accept-Encoding': 'gzip',
+    'Connection': 'close',
+    'dId': get_d_id(),
+    'X-Requested-With': 'com.hypergryph.skland'
 }
 
 # 签名请求头一定要这个顺序，否则失败
 # timestamp是必填的,其它三个随便填,不要为none即可
 header_for_sign = {
-    'platform': '',
+    'platform': '3',
     'timestamp': '',
-    'dId': '',
-    'vName': ''
+    'dId': header_login['dId'],
+    'vName': '1.0.0'
 }
 
 # 签到url
-sign_url = "https://zonai.skland.com/api/v1/game/attendance"
+sign_url_mapping = {
+    'arknights': 'https://zonai.skland.com/api/v1/game/attendance',
+    'endfield': 'https://zonai.skland.com/web/v1/game/endfield/attendance'
+}
+
 # 绑定的角色url
 binding_url = "https://zonai.skland.com/api/v1/game/player/binding"
 # 验证码url
@@ -55,22 +61,23 @@ token_password_url = "https://as.hypergryph.com/user/auth/v1/token_by_phone_pass
 grant_code_url = "https://as.hypergryph.com/user/oauth2/v2/grant"
 # 使用认证代码获得cred
 cred_code_url = "https://zonai.skland.com/web/v1/user/auth/generate_cred_by_code"
+# refresh
+refresh_token_url = "https://zonai.skland.com/web/v1/auth/refresh"
 
 
-def generate_signature(token: str, path, body_or_query):
+def generate_signature(path, body_or_query):
     """
     获得签名头
     接口地址+方法为Get请求？用query否则用body+时间戳+ 请求头的四个重要参数（dId，platform，timestamp，vName）.toJSON()
     将此字符串做HMAC加密，算法为SHA-256，密钥token为请求cred接口会返回的一个token值
     再将加密后的字符串做MD5即得到sign
-    :param token: 拿cred时候的token
     :param path: 请求路径（不包括网址）
     :param body_or_query: 如果是GET，则是它的query。POST则为它的body
     :return: 计算完毕的sign
     """
     # 总是说请勿修改设备时间，怕不是yj你的服务器有问题吧，所以这里特地-2
     t = str(int(time.time()) - 2)
-    token = token.encode('utf-8')
+    token = http_local.token.encode('utf-8')
     header_ca = json.loads(json.dumps(header_for_sign))
     header_ca['timestamp'] = t
     header_ca_str = json.dumps(header_ca, separators=(',', ':'))
@@ -84,9 +91,9 @@ def generate_signature(token: str, path, body_or_query):
 def get_sign_header(url: str, method, body, h):
     p = parse.urlparse(url)
     if method.lower() == 'get':
-        h['sign'], header_ca = generate_signature(http_local.token, p.path, p.query)
+        h['sign'], header_ca = generate_signature(p.path, p.query)
     else:
-        h['sign'], header_ca = generate_signature(http_local.token, p.path, json.dumps(body))
+        h['sign'], header_ca = generate_signature(p.path, json.dumps(body) if body is not None else '')
     for i in header_ca:
         h[i] = header_ca[i]
     return h
@@ -158,6 +165,14 @@ def get_cred(grant):
     return resp['data']
 
 
+def refresh_token():
+    headers = get_sign_header(refresh_token_url, 'get', None, http_local.header)
+    resp = requests.get(refresh_token_url, headers=headers).json()
+    if resp.get('code') != 0:
+        raise Exception(f'刷新token失败:{resp["message"]}')
+    http_local.token = resp['data']['token']
+
+
 def get_binding_list():
     v = []
     resp = requests.get(binding_url, headers=get_sign_header(binding_url, 'get', None, http_local.header)).json()
@@ -170,15 +185,65 @@ def get_binding_list():
             return []
     for i in resp['data']['list']:
         # 也许有些游戏没有签到功能？
-        if i.get('appCode') not in ('arknights','endfield'):
+        if i.get('appCode') not in ('arknights', 'endfield'):
             continue
-        v.extend(i.get('bindingList'))
+        for j in i.get('bindingList'):
+            j['appCode'] = i['appCode']
+        v.extend(i['bindingList'])
     return v
 
 
-def list_awards(game_id, uid):
-    resp = requests.get(sign_url, headers=http_local.header, params={'gameId': game_id, 'uid': uid}).json()
-    logging.info(f"签到获得:{resp}")
+def sign_for_arknights(data: dict):
+    # 返回是否成功，消息
+    body = {
+        'gameId': data.get('gameId'),
+        'uid': data.get('uid')
+    }
+    url = sign_url_mapping['arknights']
+    headers = get_sign_header(url, 'post', body, http_local.header)
+    resp = requests.post(url, headers=headers, json=body).json()
+    game_name = data.get('gameName')
+    channel = data.get("channelName")
+    nickname = data.get('nickName') or ''
+    if resp.get('code') != 0:
+        return [
+            f'[{game_name}]角色{nickname}({channel})签到失败了！原因：{resp["message"]}']
+    result = ''
+    awards = resp['data']['awards']
+    for j in awards:
+        res = j['resource']
+        result += f'{res["name"]}×{j.get("count") or 1}'
+    return [f'[{game_name}]角色{nickname}({channel})签到成功，获得了{result}']
+
+
+def sign_for_endfield(data: dict):
+    roles: list[dict] = data.get('roles')
+    game_name = data.get('gameName')
+    channel = data.get("channelName")
+    result = []
+    for i in roles:
+        nickname = i.get('nickname') or ''
+        resp = do_sign_for_endfield(i)
+        j = resp.json()
+        if j['code'] != '10000':
+            result.append(f'[{game_name}]角色{nickname}({channel})签到失败了！原因:{j["message"]}')
+        else:
+            result.append(f'[{game_name}]角色{nickname}({channel})签到成功，获得了:{j}')
+    return result
+
+
+def do_sign_for_endfield(role: dict):
+    url = sign_url_mapping['endfield']
+    headers = get_sign_header(url, 'post', None, http_local.header)
+    headers.update({
+        'Content-Type': 'application/json',
+        # FIXME b服不知道是不是这样
+        # gameid_roleid_serverid
+        'sk-game-role': f'3_{role["roleId"]}_{role["serverId"]}',
+        'referer': 'https://game.skland.com/',
+        'origin': 'https://game.skland.com/'
+    })
+    return requests.post(url, headers=headers)
 
 
 def do_sign(cred_resp):
@@ -189,27 +254,16 @@ def do_sign(cred_resp):
     success = True
     logs_out = []  # 新增：用于 Server酱³ 的汇总文本
     for i in characters:
-        body = {
-            'gameId': i.get('gameId'),
-            'uid': i.get('uid')
-        }
-        # list_awards(1, i.get('uid'))
-        msg = requests.post(sign_url, headers=get_sign_header(sign_url, 'post', body, http_local.header),
-                            json=body).json()
-        # print(msg)
-        logs_out.append(str(msg))
-        if msg['code'] != 0:
-            msg = f'[{i.get("gameName")}]角色{i.get("nickName")}({i.get("channelName")})签到失败了！原因：{msg.get("message")}'
-            logging.error(msg)
-            logs_out.append(msg)
-            success = False
-            continue
-        awards = msg['data']['awards']
-        for j in awards:
-            res = j['resource']
-            msg = f'[{i.get("gameName")}]角色{i.get("nickName")}({i.get("channelName")})签到成功，获得了{res["name"]}×{j.get("count") or 1}'
-            logging.error(msg)
-            logs_out.append(msg)
+        app_code = i['appCode']
+        msg = None
+        if app_code == 'arknights':
+            msg = sign_for_arknights(i)
+        elif app_code == 'endfield':
+            msg = sign_for_endfield(i)
+        logging.info(msg)
+
+        logs_out.extend(msg)
+
     return success, logs_out
 
 
@@ -287,7 +341,7 @@ def start():
                 success = False
         except Exception as ex:
             err = f'签到失败，原因：{str(ex)}'
-            logging.error(err)
+            logging.error(err, exc_info=ex)
             all_logs.append(err)
             success = False
     logging.info("签到完成！")
