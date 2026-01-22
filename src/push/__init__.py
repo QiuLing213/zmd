@@ -1,9 +1,13 @@
 import logging
 
 from push.serverchan3 import push_serverchan3
+from push.pushplus import push_pushplus
+from push.qmsg import push_qmsg
 
 __available_pusher = {
-    'serverchan3': push_serverchan3
+    'serverchan3': push_serverchan3,
+    'pushplus': push_pushplus,
+    'QMSG': push_qmsg,
 }
 
 
