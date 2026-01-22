@@ -1,4 +1,4 @@
-# run skyland.py
+# run main.py
 name: Auto Sign
 on:
   schedule:
@@ -18,7 +18,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests
           pip install cryptography
-      - name: Run skyland.py
+      - name: Run main.py
         env:
           GitHub_Actions: true
           # 对于多个账号一定会有人机验证问题，且因为是密码，有一定的安全风险
