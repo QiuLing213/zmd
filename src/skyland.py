@@ -225,10 +225,20 @@ def sign_for_endfield(data: dict):
         nickname = i.get('nickname') or ''
         resp = do_sign_for_endfield(i)
         j = resp.json()
-        if j['code'] != '10000':
+        if j['code'] != 0:
             result.append(f'[{game_name}]角色{nickname}({channel})签到失败了！原因:{j["message"]}')
         else:
-            result.append(f'[{game_name}]角色{nickname}({channel})签到成功，获得了:{j}')
+            awards_result = []
+            result_data: dict = j['data']
+            result_info_map: dict = result_data['resourceInfoMap']
+            for a in result_data['awardIds']:
+                award_id = a['id']
+                awards = result_info_map[award_id]
+                award_name = awards['name']
+                award_count = awards['count']
+                awards_result.append(f'{award_name}×{award_count}')
+
+            result.append(f'[{game_name}]角色{nickname}({channel})签到成功，获得了:{",".join(awards_result)}')
     return result
 
 
