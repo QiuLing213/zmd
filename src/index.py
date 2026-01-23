@@ -6,6 +6,8 @@ import skyland
 # 华为云本地文件在./code下面
 file_save_token = './code/INPUT_HYPERGRYPH_TOKEN.txt'
 
+logging.getLogger().setLevel(logging.INFO)
+
 
 def read(path):
     v = []
